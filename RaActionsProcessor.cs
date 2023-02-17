@@ -7,9 +7,9 @@ namespace RaActions
 	{
 		public delegate void ActionStageHandler(RaAction action, RaAction.ActionStage stage);
 
-		public event ActionStageHandler StageExecutedEvent;
-		public event ActionStageHandler PreStageChainEvent;
-		public event ActionStageHandler PostStageChainEvent;
+		public event ActionStageHandler ActionExecutedEvent;
+		public event ActionStageHandler PreActionChainEvent;
+		public event ActionStageHandler PostActionChainEvent;
 
 		public event RaAction.Handler EnqueuedActionEvent;
 		public event RaAction.Handler StartedActionEvent;
@@ -37,9 +37,9 @@ namespace RaActions
 			StartedActionEvent = null;
 			EnqueuedActionEvent = null;
 
-			PostStageChainEvent = null;
-			PreStageChainEvent = null;
-			StageExecutedEvent = null;
+			PostActionChainEvent = null;
+			PreActionChainEvent = null;
+			ActionExecutedEvent = null;
 		}
 
 		private void TryProcess()
@@ -132,10 +132,10 @@ namespace RaActions
 
 				if(action.TryExecute(stage))
 				{
-					StageExecutedEvent?.Invoke(action, stage);
+					ActionExecutedEvent?.Invoke(action, stage);
 				}
 
-				PreStageChainEvent?.Invoke(action, stage);
+				PreActionChainEvent?.Invoke(action, stage);
 				return true;
 			}
 			return false;
@@ -158,7 +158,7 @@ namespace RaActions
 			if(!action.HasPassedStage(action.LastEnteredChainStage))
 			{
 				action.LastFinishedChainStage = action.LastEnteredChainStage;
-				PostStageChainEvent?.Invoke(action, action.LastFinishedChainStage);
+				PostActionChainEvent?.Invoke(action, action.LastFinishedChainStage);
 				return true;
 			}
 			return false;

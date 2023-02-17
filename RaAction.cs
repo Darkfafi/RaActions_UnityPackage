@@ -115,6 +115,12 @@ namespace RaActions
 			return data;
 		}
 
+		public T GetData<T>(string key)
+		{
+			TryGetData(key, out T data);
+			return data;
+		}
+
 		public bool TryGetData<T>(out T value)
 		{
 			if(_data.TryGetItem(out RaActionData data, (x) => x.Value is T))
