@@ -52,11 +52,19 @@ namespace RaActions
 			// Initial Start
 			PushToExecutionStack(_queuedActions.Dequeue());
 
-			List<RaAction> actionsToDispose = new List<RaAction>();
+			RaAction rootAction = null;
 
 			while(_executionStack.Count > 0)
 			{
 				RaAction currentAction = _executionStack.Peek();
+
+				if(rootAction == null)
+				{
+					rootAction = currentAction;
+				}
+
+				currentAction._chainData = rootAction._chainData;
+				currentAction._chainTags = rootAction._chainTags;
 
 				// Pre-Processing
 				if(ProcessStage(currentAction, RaAction.ActionStage.PreProcessing))
@@ -89,10 +97,21 @@ namespace RaActions
 				currentAction = _executionStack.Pop();
 				FinishedActionEvent?.Invoke(currentAction);
 
-				// Clean-up
-				currentAction.Dispose();
+				// If we are not the root action, clean and continue
+				if(currentAction != rootAction)
+				{
+					currentAction.Dispose();
+					continue;
+				}
+				
+				// The Root Action has Finished, so the chain has been Completed. 
+				// We can clean the root action and its chain links now
+				rootAction._chainData.Clear();
+				rootAction._chainTags.Clear();
+				rootAction.Dispose();
+				rootAction = null;
 
-				// On Finish, Start Next if any is waiting
+				// If there are still actions in the queue, then push the next to the execution stack
 				if(_queuedActions.Count > 0)
 				{
 					PushToExecutionStack(_queuedActions.Dequeue());
