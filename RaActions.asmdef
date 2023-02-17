@@ -1,0 +1,16 @@
+{
+    "name": "RaActions",
+    "rootNamespace": "",
+    "references": [
+        "GUID:ca3f500f7725861499d1b7686b2acfa0"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
