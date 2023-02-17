@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace RaActions
 {
-	public class RaActionProcessor : IDisposable
+	public class RaActionsProcessor : IDisposable
 	{
 		public delegate void ActionStageHandler(RaAction action, RaAction.ActionStage stage);
 

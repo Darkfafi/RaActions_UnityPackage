@@ -8,27 +8,27 @@ namespace RaActions
 	{
 		public delegate void Handler(RaAction action);
 
-		internal ActionStage LastEnteredChainStage;
-		internal ActionStage CurrentStage;
-		internal ActionStage LastFinishedChainStage;
+		internal ActionStage LastEnteredChainStage = ActionStage.None;
+		internal ActionStage CurrentStage = ActionStage.None;
+		internal ActionStage LastFinishedChainStage = ActionStage.None;
 		internal bool IsMarkedAsCancelled = false;
 
-		private bool _inConstruction = true;
+		private bool _isConstructed = false;
 
 		private readonly RaElementCollection<RaActionData> _data = new RaElementCollection<RaActionData>();
 		private readonly HashSet<string> _tags = new HashSet<string>();
 
-		private Queue<RaAction> _preChain;
-		private Queue<RaAction> _chain;
-		private Queue<RaAction> _postChain;
-		private Queue<RaAction> _cancelledChain;
+		private Queue<RaAction> _preChain = new Queue<RaAction>();
+		private Queue<RaAction> _chain = new Queue<RaAction>();
+		private Queue<RaAction> _postChain = new Queue<RaAction>();
+		private Queue<RaAction> _cancelledChain = new Queue<RaAction>();
 
-		private ActionStage _lastExecutedStage;
+		private ActionStage _lastExecutedStage = ActionStage.None;
 
-		private Handler _preMethod;
-		private Handler _method;
-		private Handler _postMethod;
-		private Handler _cancelledMethod;
+		private Handler _preMethod = null;
+		private Handler _method = null;
+		private Handler _postMethod = null;
+		private Handler _cancelledMethod = null;
 
 		public static RaAction Create(Handler mainMethod, Handler preMethod = null, Handler postMethod = null, Handler cancelledMethod = null)
 		{
@@ -73,7 +73,7 @@ namespace RaActions
 
 		public RaAction Build_Result()
 		{
-			_inConstruction = false;
+			_isConstructed = true;
 			return this;
 		}
 
@@ -272,7 +272,7 @@ namespace RaActions
 		private void ThrowIfNotConstruction(string methodName)
 		{
 			ThrowIfDisposedState(methodName);
-			if(!_inConstruction)
+			if(_isConstructed)
 			{
 				throw new InvalidOperationException($"Can't perform {methodName} for {nameof(RaAction)} is no longer under construction");
 			}
