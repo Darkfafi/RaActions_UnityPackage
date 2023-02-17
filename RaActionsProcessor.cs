@@ -1,8 +1,9 @@
+using System;
 using System.Collections.Generic;
 
 namespace RaActions
 {
-	public class RaActionProcessor
+	public class RaActionProcessor : IDisposable
 	{
 		public delegate void ActionStageHandler(RaAction action, RaAction.ActionStage stage);
 
@@ -25,6 +26,20 @@ namespace RaActions
 			_queuedActions.Enqueue(action);
 			EnqueuedActionEvent?.Invoke(action);
 			TryProcess();
+		}
+
+		public void Dispose()
+		{
+			_queuedActions.Clear();
+			_executionStack.Clear();
+
+			FinishedActionEvent = null;
+			StartedActionEvent = null;
+			EnqueuedActionEvent = null;
+
+			PostStageChainEvent = null;
+			PreStageChainEvent = null;
+			StageExecutedEvent = null;
 		}
 
 		private void TryProcess()
