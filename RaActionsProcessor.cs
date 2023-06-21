@@ -11,6 +11,9 @@ namespace RaActions
 		public event ActionStageHandler PreActionChainEvent;
 		public event ActionStageHandler PostActionChainEvent;
 
+		public event RaAction.Handler SetRootActionEvent;
+		public event RaAction.Handler ClearedRootActionEvent;
+
 		public event RaAction.Handler EnqueuedActionEvent;
 		public event RaAction.Handler StartedActionEvent;
 		public event RaAction.Handler FinishedActionEvent;
@@ -61,6 +64,7 @@ namespace RaActions
 				if(rootAction == null)
 				{
 					rootAction = currentAction;
+					SetRootActionEvent?.Invoke(rootAction);
 				}
 
 				currentAction._chainData = rootAction._chainData;
@@ -103,13 +107,16 @@ namespace RaActions
 					currentAction.Dispose();
 					continue;
 				}
-				
+
 				// The Root Action has Finished, so the chain has been Completed. 
 				// We can clean the root action and its chain links now
-				rootAction._chainData.Clear();
-				rootAction._chainTags.Clear();
-				rootAction.Dispose();
+				RaAction preRootAction = rootAction;
 				rootAction = null;
+
+				ClearedRootActionEvent?.Invoke(preRootAction);
+				preRootAction._chainData.Clear();
+				preRootAction._chainTags.Clear();
+				preRootAction.Dispose();
 
 				// If there are still actions in the queue, then push the next to the execution stack
 				if(_queuedActions.Count > 0)
