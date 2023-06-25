@@ -45,6 +45,25 @@ namespace RaActions
 			ActionExecutedEvent = null;
 		}
 
+		public bool TryContinueChain(RaAction action)
+		{
+			if(action.LastFinishedChainStage == action.CurrentStage)
+			{
+				return false;
+			}
+
+			switch(action.CurrentStage)
+			{
+				case RaAction.ActionStage.PreProcessing:
+				case RaAction.ActionStage.Cancelled:
+				case RaAction.ActionStage.Processing:
+				case RaAction.ActionStage.PostProcessing:
+					return TryContinueChain(action, action.CurrentStage);
+				default:
+					return false;
+			}
+		}
+
 		private void TryProcess()
 		{
 			if(IsProcessing)

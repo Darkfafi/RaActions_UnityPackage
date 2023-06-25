@@ -162,16 +162,24 @@ namespace RaActions
 			return this;
 		}
 
+		public RaAction RemoveCallback(string id, bool inChain = false) => RemoveData(id, inChain);
+
 		public RaAction SetData(string id, object data, bool inChain = false)
 		{
 			ThrowIfDisposedState(nameof(SetData));
-			RaActionData actionData = RaActionData.Create(id, data);
-			_data.Add(actionData);
-			if(inChain)
-			{
-				_chainData.Add(actionData);
-			}
-			return this;
+			return SetData(RaActionData.Create(id, data), inChain);
+		}
+
+		public RaAction SetCallback(string id, Action callback, bool inChain = false)
+		{
+			ThrowIfDisposedState(nameof(SetCallback));
+			return SetData(RaActionData.Create(id, callback), inChain);
+		}
+
+		public Action GetCallback(string id, bool inChain = false)
+		{
+			TryGetCallback(id, out Action callback, inChain);
+			return callback;
 		}
 
 		public T GetData<T>(bool inChain = false)
@@ -232,6 +240,27 @@ namespace RaActions
 			return false;
 		}
 
+		public bool TryGetCallback(string key, out Action callback, bool inChain = false)
+		{
+			if(_data.TryGetItem(key, out RaActionData data) && data.Callback != null)
+			{
+				callback = data.Callback;
+				return true;
+			}
+
+			if(inChain)
+			{
+				if(_chainData.TryGetItem(key, out data) && data.Callback != null)
+				{
+					callback = data.Callback;
+					return true;
+				}
+			}
+
+			callback = default;
+			return false;
+		}
+
 		public List<T> GetAllData<T>(bool inChain = false)
 		{
 			List<T> values = new List<T>();
@@ -270,6 +299,20 @@ namespace RaActions
 		}
 
 		public void ChainAction(RaAction action, ActionStage stage)
+		{
+			if(HasPassedStage(stage))
+			{
+				throw new InvalidOperationException($"Can't Chain action {action} to {this}. The Stage {stage} has already passed. Current Stage {LastEnteredChainStage}");
+			}
+			GetChain(stage)?.Enqueue(action);
+		}
+
+		public void ChainActionInstant(RaAction action)
+		{
+			ChainActionInstant(action, LastEnteredChainStage);
+		}
+
+		public void ChainActionInstant(RaAction action, ActionStage stage)
 		{
 			if(HasPassedStage(stage))
 			{
@@ -409,6 +452,16 @@ namespace RaActions
 			{
 				throw new InvalidOperationException($"Can't perform {methodName} on dispossed Action");
 			}
+		}
+
+		private RaAction SetData(RaActionData data, bool inChain)
+		{
+			_data.Add(data);
+			if(inChain)
+			{
+				_chainData.Add(data);
+			}
+			return this;
 		}
 
 		public enum ActionStage
