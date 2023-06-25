@@ -5,208 +5,124 @@ namespace RaActions
 {
 	public class RaActionsProcessor : IDisposable
 	{
-		public delegate void ActionStageHandler(RaAction action, RaAction.ActionStage stage);
+		public delegate void EventHandler(RaAction action);
+		public delegate void EventSourceHandler(RaAction action, object source);
 
-		public event ActionStageHandler ActionExecutedEvent;
-		public event ActionStageHandler PreActionChainEvent;
-		public event ActionStageHandler PostActionChainEvent;
+		public event EventHandler StartedProcessingRootActionEvent;
+		public event EventHandler EndedProcessingRootActionEvent;
 
-		public event RaAction.Handler SetRootActionEvent;
-		public event RaAction.Handler ClearedRootActionEvent;
+		public event EventHandler StartedProcessingActionEvent;
+		public event EventHandler EndedProcessingActionEvent;
 
-		public event RaAction.Handler EnqueuedActionEvent;
-		public event RaAction.Handler StartedActionEvent;
-		public event RaAction.Handler FinishedActionEvent;
+		public event EventHandler ExecutedPreActionEvent;
+		public event EventHandler ExecutedMainActionEvent;
+		public event EventHandler ExecutedPostActionEvent;
+		public event EventSourceHandler CancelledActionEvent;
 
-		private readonly Queue<RaAction> _queuedActions = new Queue<RaAction>();
-		private readonly Stack<RaAction> _executionStack = new Stack<RaAction>();
+		private Stack<RaAction> _currentActionStack = new Stack<RaAction>();
 
-		public bool IsProcessing => _executionStack.Count > 0;
-
-		public void EnqueueAction(RaAction action)
+		public bool Process(RaAction action)
 		{
-			action = action.Build_Result();
-			_queuedActions.Enqueue(action);
-			EnqueuedActionEvent?.Invoke(action);
-			TryProcess();
+			return InternalProcess(action);
+		}
+
+		public bool Process<TParameters, TResult>(RaAction<TParameters, TResult> action, out TResult result)
+		{
+			return action.Execute(this, out result);
+		}
+
+		internal bool InternalProcess(RaAction action)
+		{
+			if(action.State != RaAction.RaActionState.None)
+			{
+				throw new InvalidOperationException("Can't Process an action which is not in the state 'None'");
+			}
+
+			// -- Start -- 
+			action.SetState(RaAction.RaActionState.Started);
+
+			bool isRootAction = true;
+			if(_currentActionStack.TryPeek(out RaAction parentAction))
+			{
+				isRootAction = false;
+				parentAction.chainedActions.Add(action);
+			}
+
+			_currentActionStack.Push(action);
+
+			if(isRootAction)
+			{
+				StartedProcessingRootActionEvent?.Invoke(action);
+			}
+
+			StartedProcessingActionEvent?.Invoke(action);
+
+			// -- Pre Execution --
+			action.SetState(RaAction.RaActionState.PreExecution);
+			action.InvokePreMethod();
+			ExecutedPreActionEvent?.Invoke(action);
+
+			// -- Cancellation Check --
+			if(action.IsCancelled)
+			{
+				// No need to Pop, for within the cancellation method this is already done
+				return false;
+			}
+
+			// -- Main Execution --
+			action.SetState(RaAction.RaActionState.MainExecution);
+			action.InvokeMainMethod();
+			ExecutedMainActionEvent?.Invoke(action);
+
+			// -- Post Execution --
+			action.SetState(RaAction.RaActionState.PostExecution);
+			action.InvokePostMethod();
+			ExecutedPostActionEvent?.Invoke(action);
+
+			// -- End --
+			_currentActionStack.Pop();
+			action.SetState(RaAction.RaActionState.Completed);
+			if(isRootAction)
+			{
+				EndedProcessingRootActionEvent?.Invoke(action);
+			}
+
+			EndedProcessingActionEvent?.Invoke(action);
+			return true;
+		}
+
+		internal void InternalCancel(RaAction action, object source)
+		{
+			if(action.State > RaAction.RaActionState.PreExecution)
+			{
+				throw new InvalidOperationException("Can't cancel an action which is past Pre Execution");
+			}
+
+			action.SetState(RaAction.RaActionState.Cancelled);
+			action.InvokeCancelMethod(source);
+
+			if(action.IsBeingProcessed)
+			{
+				_currentActionStack.Pop();
+			}
+
+			CancelledActionEvent?.Invoke(action, source);
 		}
 
 		public void Dispose()
 		{
-			_queuedActions.Clear();
-			_executionStack.Clear();
+			StartedProcessingRootActionEvent = null;
+			EndedProcessingRootActionEvent = null;
 
-			FinishedActionEvent = null;
-			StartedActionEvent = null;
-			EnqueuedActionEvent = null;
+			StartedProcessingActionEvent = null;
+			EndedProcessingActionEvent = null;
 
-			PostActionChainEvent = null;
-			PreActionChainEvent = null;
-			ActionExecutedEvent = null;
-		}
+			ExecutedPreActionEvent = null;
+			ExecutedMainActionEvent = null;
+			ExecutedPostActionEvent = null;
+			CancelledActionEvent = null;
 
-		public bool TryContinueChain(RaAction action)
-		{
-			if(action.LastFinishedChainStage == action.CurrentStage)
-			{
-				return false;
-			}
-
-			switch(action.CurrentStage)
-			{
-				case RaAction.ActionStage.PreProcessing:
-				case RaAction.ActionStage.Cancelled:
-				case RaAction.ActionStage.Processing:
-				case RaAction.ActionStage.PostProcessing:
-					return TryContinueChain(action, action.CurrentStage);
-				default:
-					return false;
-			}
-		}
-
-		private void TryProcess()
-		{
-			if(IsProcessing)
-			{
-				return;
-			}
-
-			// Initial Start
-			PushToExecutionStack(_queuedActions.Dequeue());
-
-			RaAction rootAction = null;
-
-			while(_executionStack.Count > 0)
-			{
-				RaAction currentAction = _executionStack.Peek();
-
-				if(rootAction == null)
-				{
-					rootAction = currentAction;
-					SetRootActionEvent?.Invoke(rootAction);
-				}
-
-				currentAction._chainData = rootAction._chainData;
-				currentAction._chainTags = rootAction._chainTags;
-
-				// Pre-Processing
-				if(ProcessStage(currentAction, RaAction.ActionStage.PreProcessing))
-				{
-					continue;
-				}
-
-				// Cancelled
-				if(currentAction.IsMarkedAsCancelled)
-				{
-					if(ProcessStage(currentAction, RaAction.ActionStage.Cancelled))
-					{
-						continue;
-					}
-				}
-
-				// Processing
-				if(ProcessStage(currentAction, RaAction.ActionStage.Processing))
-				{
-					continue;
-				}
-
-				// Post-Processing
-				if(ProcessStage(currentAction, RaAction.ActionStage.PostProcessing))
-				{
-					continue;
-				}
-
-				// Finish
-				currentAction = _executionStack.Pop();
-				FinishedActionEvent?.Invoke(currentAction);
-
-				// If we are not the root action, clean and continue
-				if(currentAction != rootAction)
-				{
-					currentAction.Dispose();
-					continue;
-				}
-
-				// The Root Action has Finished, so the chain has been Completed. 
-				// We can clean the root action and its chain links now
-				RaAction preRootAction = rootAction;
-				rootAction = null;
-
-				ClearedRootActionEvent?.Invoke(preRootAction);
-				preRootAction._chainData.Clear();
-				preRootAction._chainTags.Clear();
-				preRootAction.Dispose();
-
-				// If there are still actions in the queue, then push the next to the execution stack
-				if(_queuedActions.Count > 0)
-				{
-					PushToExecutionStack(_queuedActions.Dequeue());
-				}
-			}
-		}
-
-		private void PushToExecutionStack(RaAction action)
-		{
-			_executionStack.Push(action);
-			StartedActionEvent?.Invoke(action);
-		}
-
-		private bool ProcessStage(RaAction action, RaAction.ActionStage stage)
-		{
-			if(EnterChainStage(action, stage))
-			{
-				if(TryContinueChain(action, stage))
-				{
-					return true;
-				}
-				FinishChainStage(action);
-			}
-			return false;
-		}
-
-		private bool EnterChainStage(RaAction action, RaAction.ActionStage stage)
-		{
-			if(action.CurrentStage != stage && !action.HasPassedStage(stage))
-			{
-				action.CurrentStage = stage;
-
-				if(stage > action.LastEnteredChainStage)
-				{
-					action.LastEnteredChainStage = stage;
-				}
-
-				if(action.TryExecute(stage))
-				{
-					ActionExecutedEvent?.Invoke(action, stage);
-				}
-
-				PreActionChainEvent?.Invoke(action, stage);
-				return true;
-			}
-			return false;
-		}
-
-		private bool TryContinueChain(RaAction action, RaAction.ActionStage stage)
-		{
-			if(action.TryDequeueChain(stage, out RaAction chainAction))
-			{
-				action.CurrentStage = RaAction.ActionStage.Chaining;
-				PushToExecutionStack(chainAction);
-				return true;
-			}
-
-			return false;
-		}
-
-		private bool FinishChainStage(RaAction action)
-		{
-			if(!action.HasPassedStage(action.LastEnteredChainStage))
-			{
-				action.LastFinishedChainStage = action.LastEnteredChainStage;
-				PostActionChainEvent?.Invoke(action, action.LastFinishedChainStage);
-				return true;
-			}
-			return false;
+			_currentActionStack.Clear();
 		}
 	}
 }
