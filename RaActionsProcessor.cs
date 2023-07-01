@@ -7,6 +7,7 @@ namespace RaActions
 	{
 		public delegate void EventHandler(RaAction action);
 		public delegate void EventSourceHandler(RaAction action, object source);
+		public delegate void EventStateHandler(RaAction action, RaAction.RaActionState state);
 
 		public event EventHandler StartedProcessingRootActionEvent;
 		public event EventHandler EndedProcessingRootActionEvent;
@@ -17,7 +18,14 @@ namespace RaActions
 		public event EventHandler ExecutedPreActionEvent;
 		public event EventHandler ExecutedMainActionEvent;
 		public event EventHandler ExecutedPostActionEvent;
+
 		public event EventSourceHandler CancelledActionEvent;
+
+
+		/// <summary>
+		/// This event is called after main execution and every iteration 
+		/// </summary>
+		public event EventStateHandler ReactToActionHookEvent;
 
 		private Stack<RaAction> _currentActionStack = new Stack<RaAction>();
 
@@ -60,6 +68,7 @@ namespace RaActions
 			// -- Pre Execution --
 			action.SetState(RaAction.RaActionState.PreExecution);
 			action.InvokePreMethod();
+			ReactionHookProcessing(action);
 			ExecutedPreActionEvent?.Invoke(action);
 
 			// -- Cancellation Check --
@@ -72,19 +81,27 @@ namespace RaActions
 			// -- Main Execution --
 			action.SetState(RaAction.RaActionState.MainExecution);
 			action.InvokeMainMethod();
+			ReactionHookProcessing(action);
 			ExecutedMainActionEvent?.Invoke(action);
 
 			// -- Post Execution --
 			action.SetState(RaAction.RaActionState.PostExecution);
 			action.InvokePostMethod();
+			ReactionHookProcessing(action);
 			ExecutedPostActionEvent?.Invoke(action);
 
 			// -- End --
 			_currentActionStack.Pop();
 			action.SetState(RaAction.RaActionState.Completed);
+
 			if(isRootAction)
 			{
 				EndedProcessingRootActionEvent?.Invoke(action);
+			}
+			// Mark the parent as dirty for the child behaviour has been executed
+			else if(action.ShouldMarkParentAsDirty())
+			{
+				parentAction.MarkAsDirty();
 			}
 
 			EndedProcessingActionEvent?.Invoke(action);
@@ -109,6 +126,16 @@ namespace RaActions
 			CancelledActionEvent?.Invoke(action, source);
 		}
 
+		private void ReactionHookProcessing(RaAction action)
+		{
+			do
+			{
+				action.ClearDirtyMark();
+				ReactToActionHookEvent?.Invoke(action, action.State);
+			}
+			while(action.IsDirty);
+		}
+
 		public void Dispose()
 		{
 			StartedProcessingRootActionEvent = null;
@@ -121,6 +148,8 @@ namespace RaActions
 			ExecutedMainActionEvent = null;
 			ExecutedPostActionEvent = null;
 			CancelledActionEvent = null;
+
+			ReactToActionHookEvent = null;
 
 			_currentActionStack.Clear();
 		}
