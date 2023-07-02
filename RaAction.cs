@@ -3,8 +3,17 @@ using System;
 
 namespace RaActions
 {
+	public interface IRaActionResult
+	{
+		bool Success
+		{
+			get;
+		}
+	}
+
 	public abstract class RaAction
 	{
+		public delegate bool SuccessHandler();
 		public delegate void RaActionHandler(RaAction action);
 		public delegate void RaActionCancelHandler(RaAction action, object source);
 
@@ -31,14 +40,20 @@ namespace RaActions
 			get; private set;
 		}
 
-		private Action _mainAction = null;
+		public bool Success
+		{
+			get; internal set;
+		}
+
+		private SuccessHandler _mainAction = null;
 		private RaActionHandler _preMethod = null;
 		private RaActionHandler _postMethod = null;
 		private RaActionCancelHandler _cancelMethod = null;
 
-		public RaAction(Action executeMethod)
+		public RaAction(SuccessHandler executeMethod)
 		{
 			Id = _counter++;
+			Success = false;
 			_mainAction = executeMethod;
 		}
 
@@ -86,19 +101,14 @@ namespace RaActions
 			_cancelMethod = method;
 		}
 
-		public virtual bool ShouldMarkParentAsDirty()
-		{
-			return true;
-		}
-
 		internal virtual void InvokePreMethod()
 		{
 			_preMethod?.Invoke(this);
 		}
 
-		internal virtual void InvokeMainMethod()
+		internal virtual bool InvokeMainMethod()
 		{
-			_mainAction.Invoke();
+			return _mainAction.Invoke();
 		}
 
 		internal virtual void InvokePostMethod()
@@ -138,6 +148,7 @@ namespace RaActions
 	}
 
 	public abstract class RaAction<TParameters, TResult> : RaAction
+		where TResult : IRaActionResult
 	{
 		public delegate TResult MainHandler(TParameters parameters);
 
@@ -165,10 +176,6 @@ namespace RaActions
 			Parameters = parameters;
 		}
 
-		public override bool ShouldMarkParentAsDirty()
-		{
-			return base.ShouldMarkParentAsDirty() && !Result.Equals(default);
-		}
 
 		public bool Execute(RaActionsProcessor processor, out TResult result)
 		{
@@ -183,9 +190,10 @@ namespace RaActions
 			return success;
 		}
 
-		internal override void InvokeMainMethod()
+		internal override bool InvokeMainMethod()
 		{
 			Result = MainMethod.Invoke(Parameters);
+			return Result.IsSuccessful();
 		}
 	}
 }

@@ -35,6 +35,7 @@ namespace RaActions
 		}
 
 		public bool Process<TParameters, TResult>(RaAction<TParameters, TResult> action, out TResult result)
+			where TResult : IRaActionResult
 		{
 			return action.Execute(this, out result);
 		}
@@ -80,7 +81,7 @@ namespace RaActions
 
 			// -- Main Execution --
 			action.SetState(RaAction.RaActionState.MainExecution);
-			action.InvokeMainMethod();
+			action.Success = action.InvokeMainMethod();
 			ReactionHookProcessing(action);
 			ExecutedMainActionEvent?.Invoke(action);
 
@@ -99,7 +100,7 @@ namespace RaActions
 				EndedProcessingRootActionEvent?.Invoke(action);
 			}
 			// Mark the parent as dirty for the child behaviour has been executed
-			else if(action.ShouldMarkParentAsDirty())
+			else if(action.Success)
 			{
 				parentAction.MarkAsDirty();
 			}
