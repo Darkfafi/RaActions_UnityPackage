@@ -40,10 +40,9 @@ namespace RaActions
 			get; private set;
 		}
 
-		public bool Success
-		{
-			get; internal set;
-		}
+		public virtual bool Success => MainMethodSuccessStatus;
+
+		internal bool MainMethodSuccessStatus;
 
 		private SuccessHandler _mainAction = null;
 		private RaActionHandler _preMethod = null;
@@ -53,7 +52,7 @@ namespace RaActions
 		public RaAction(SuccessHandler executeMethod)
 		{
 			Id = _counter++;
-			Success = false;
+			MainMethodSuccessStatus = false;
 			_mainAction = executeMethod;
 		}
 

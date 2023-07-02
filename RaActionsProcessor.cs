@@ -76,12 +76,12 @@ namespace RaActions
 			if(action.IsCancelled)
 			{
 				// No need to Pop, for within the cancellation method this is already done
-				return false;
+				return action.Success;
 			}
 
 			// -- Main Execution --
 			action.SetState(RaAction.RaActionState.MainExecution);
-			action.Success = action.InvokeMainMethod();
+			action.MainMethodSuccessStatus = action.InvokeMainMethod();
 			ReactionHookProcessing(action);
 			ExecutedMainActionEvent?.Invoke(action);
 
@@ -106,7 +106,7 @@ namespace RaActions
 			}
 
 			EndedProcessingActionEvent?.Invoke(action);
-			return true;
+			return action.Success;
 		}
 
 		internal void InternalCancel(RaAction action, object source)
