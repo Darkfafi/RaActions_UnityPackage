@@ -73,27 +73,24 @@ namespace RaActions
 			ExecutedPreActionEvent?.Invoke(action);
 
 			// -- Cancellation Check --
-			if(action.IsCancelled)
+			if(!action.IsCancelled)
 			{
-				// No need to Pop, for within the cancellation method this is already done
-				return action.Success;
+				// -- Main Execution --
+				action.SetState(RaAction.RaActionState.MainExecution);
+				action.MainMethodSuccessStatus = action.InvokeMainMethod();
+				ReactionHookProcessing(action);
+				ExecutedMainActionEvent?.Invoke(action);
+
+				// -- Post Execution --
+				action.SetState(RaAction.RaActionState.PostExecution);
+				action.InvokePostMethod();
+				ReactionHookProcessing(action);
+				ExecutedPostActionEvent?.Invoke(action);
+
+				// -- End --
+				_currentActionStack.Pop();
+				action.SetState(RaAction.RaActionState.Completed);
 			}
-
-			// -- Main Execution --
-			action.SetState(RaAction.RaActionState.MainExecution);
-			action.MainMethodSuccessStatus = action.InvokeMainMethod();
-			ReactionHookProcessing(action);
-			ExecutedMainActionEvent?.Invoke(action);
-
-			// -- Post Execution --
-			action.SetState(RaAction.RaActionState.PostExecution);
-			action.InvokePostMethod();
-			ReactionHookProcessing(action);
-			ExecutedPostActionEvent?.Invoke(action);
-
-			// -- End --
-			_currentActionStack.Pop();
-			action.SetState(RaAction.RaActionState.Completed);
 
 			if(isRootAction)
 			{
@@ -109,22 +106,32 @@ namespace RaActions
 			return action.Success;
 		}
 
-		internal void InternalCancel(RaAction action, object source)
+		internal bool InternalCancel(RaAction action, object source)
 		{
 			if(action.State > RaAction.RaActionState.PreExecution)
 			{
-				throw new InvalidOperationException("Can't cancel an action which is past Pre Execution");
+				if(action.State != RaAction.RaActionState.Cancelled)
+				{
+					throw new InvalidOperationException("Can't cancel an action which is past Pre Execution");
+				}
+				else
+				{
+					return false;
+				}
 			}
+
+			bool wasBeingProcessed = action.IsBeingProcessed;
 
 			action.SetState(RaAction.RaActionState.Cancelled);
 			action.InvokeCancelMethod(source);
 
-			if(action.IsBeingProcessed)
+			if(wasBeingProcessed)
 			{
 				_currentActionStack.Pop();
 			}
 
 			CancelledActionEvent?.Invoke(action, source);
+			return true;
 		}
 
 		private void ReactionHookProcessing(RaAction action)

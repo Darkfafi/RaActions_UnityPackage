@@ -20,7 +20,7 @@ namespace RaActions
 		public readonly ulong Id;
 		private static ulong _counter = 0L;
 
-		internal RaActionState State
+		public RaActionState State
 		{
 			get; private set;
 		}
@@ -61,9 +61,9 @@ namespace RaActions
 			return processor.InternalProcess(this);
 		}
 
-		public void Cancel(RaActionsProcessor processor, object source)
+		public bool Cancel(RaActionsProcessor processor, object source)
 		{
-			processor.InternalCancel(this, source);
+			return processor.InternalCancel(this, source);
 		}
 
 		public void MarkAsDirty()
@@ -192,7 +192,7 @@ namespace RaActions
 		internal override bool InvokeMainMethod()
 		{
 			Result = MainMethod.Invoke(Parameters);
-			return Result.IsSuccessful();
+			return Result != null && Result.Success;
 		}
 	}
 }
