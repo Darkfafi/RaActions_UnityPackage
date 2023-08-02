@@ -122,6 +122,7 @@ namespace RaActions
 
 			bool wasBeingProcessed = action.IsBeingProcessed;
 
+			action.CancelSource = source;
 			action.SetState(RaAction.RaActionState.Cancelled);
 			action.InvokeCancelMethod(source);
 

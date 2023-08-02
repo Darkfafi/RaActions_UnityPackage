@@ -40,6 +40,11 @@ namespace RaActions
 			get; private set;
 		}
 
+		public object CancelSource
+		{
+			get; internal set;
+		}
+
 		public virtual bool Success => MainMethodSuccessStatus;
 
 		internal bool MainMethodSuccessStatus;
