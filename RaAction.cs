@@ -1,5 +1,6 @@
-﻿using System.Collections.Generic;
-using System;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace RaActions
 {
@@ -13,9 +14,9 @@ namespace RaActions
 
 	public abstract class RaAction
 	{
-		public delegate bool SuccessHandler();
-		public delegate void RaActionHandler(RaAction action);
-		public delegate void RaActionCancelHandler(RaAction action, object source);
+		public delegate Task<bool> SuccessHandler();
+		public delegate Task RaActionHandler(RaAction action);
+		public delegate Task RaActionCancelHandler(RaAction action, object source);
 
 		public readonly ulong Id;
 		private static ulong _counter = 0L;
@@ -61,14 +62,14 @@ namespace RaActions
 			_mainAction = executeMethod;
 		}
 
-		public bool Execute(RaActionsProcessor processor)
+		public async Task<bool> Execute(RaActionsProcessor processor)
 		{
-			return processor.InternalProcess(this);
+			return await processor.InternalProcess(this);
 		}
 
-		public bool Cancel(RaActionsProcessor processor, object source)
+		public async Task<bool> Cancel(RaActionsProcessor processor, object source)
 		{
-			return processor.InternalCancel(this, source);
+			return await processor.InternalCancel(this, source);
 		}
 
 		public void MarkAsDirty()
@@ -105,24 +106,24 @@ namespace RaActions
 			_cancelMethod = method;
 		}
 
-		internal virtual void InvokePreMethod()
+		internal virtual async Task InvokePreMethod()
 		{
-			_preMethod?.Invoke(this);
+			await _preMethod?.Invoke(this);
 		}
 
-		internal virtual bool InvokeMainMethod()
+		internal virtual async Task<bool> InvokeMainMethod()
 		{
-			return _mainAction.Invoke();
+			return await _mainAction.Invoke();
 		}
 
-		internal virtual void InvokePostMethod()
+		internal virtual async Task InvokePostMethod()
 		{
-			_postMethod?.Invoke(this);
+			await _postMethod?.Invoke(this);
 		}
 
-		internal virtual void InvokeCancelMethod(object source)
+		internal virtual async Task InvokeCancelMethod(object source)
 		{
-			_cancelMethod?.Invoke(this, source);
+			await _cancelMethod?.Invoke(this, source);
 		}
 
 		internal void SetState(RaActionState state)
@@ -154,7 +155,7 @@ namespace RaActions
 	public abstract class RaAction<TParameters, TResult> : RaAction
 		where TResult : IRaActionResult
 	{
-		public delegate TResult MainHandler(TParameters parameters);
+		public delegate Task<TResult> MainHandler(TParameters parameters);
 
 		public TParameters Parameters
 		{
@@ -180,24 +181,28 @@ namespace RaActions
 			Parameters = parameters;
 		}
 
-
-		public bool Execute(RaActionsProcessor processor, out TResult result)
+		public new async Task<RaActionResponse> Execute(RaActionsProcessor processor)
 		{
-			return Execute(processor, out result, out _);
+			bool success = await processor.InternalProcess(this);
+			return new RaActionResponse()
+			{
+				Success = success,
+				Result = Result,
+				Parameters = Parameters,
+			};
 		}
 
-		public bool Execute(RaActionsProcessor processor, out TResult result, out TParameters parameters)
+		internal override async Task<bool> InvokeMainMethod()
 		{
-			bool success = processor.InternalProcess(this);
-			result = Result;
-			parameters = Parameters;
-			return success;
-		}
-
-		internal override bool InvokeMainMethod()
-		{
-			Result = MainMethod.Invoke(Parameters);
+			Result = await MainMethod.Invoke(Parameters);
 			return Result != null && Result.Success;
+		}
+
+		public struct RaActionResponse
+		{
+			public bool Success;
+			public TResult Result;
+			public TParameters Parameters;
 		}
 	}
 }

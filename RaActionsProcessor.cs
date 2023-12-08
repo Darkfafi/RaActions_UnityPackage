@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace RaActions
 {
@@ -29,18 +30,18 @@ namespace RaActions
 
 		private Stack<RaAction> _currentActionStack = new Stack<RaAction>();
 
-		public bool Process(RaAction action)
+		public async Task<bool> Process(RaAction action)
 		{
-			return InternalProcess(action);
+			return await InternalProcess(action);
 		}
 
-		public bool Process<TParameters, TResult>(RaAction<TParameters, TResult> action, out TResult result)
+		public async Task<RaAction<TParameters, TResult>.RaActionResponse> Process<TParameters, TResult>(RaAction<TParameters, TResult> action)
 			where TResult : IRaActionResult
 		{
-			return action.Execute(this, out result);
+			return await action.Execute(this);
 		}
 
-		internal bool InternalProcess(RaAction action)
+		internal async Task<bool> InternalProcess(RaAction action)
 		{
 			if(action.State != RaAction.RaActionState.None)
 			{
@@ -68,7 +69,7 @@ namespace RaActions
 
 			// -- Pre Execution --
 			action.SetState(RaAction.RaActionState.PreExecution);
-			action.InvokePreMethod();
+			await action.InvokePreMethod();
 			ReactionHookProcessing(action);
 			ExecutedPreActionEvent?.Invoke(action);
 
@@ -77,13 +78,13 @@ namespace RaActions
 			{
 				// -- Main Execution --
 				action.SetState(RaAction.RaActionState.MainExecution);
-				action.MainMethodSuccessStatus = action.InvokeMainMethod();
+				action.MainMethodSuccessStatus = await action.InvokeMainMethod();
 				ReactionHookProcessing(action);
 				ExecutedMainActionEvent?.Invoke(action);
 
 				// -- Post Execution --
 				action.SetState(RaAction.RaActionState.PostExecution);
-				action.InvokePostMethod();
+				await action.InvokePostMethod();
 				ReactionHookProcessing(action);
 				ExecutedPostActionEvent?.Invoke(action);
 
@@ -106,7 +107,7 @@ namespace RaActions
 			return action.Success;
 		}
 
-		internal bool InternalCancel(RaAction action, object source)
+		internal async Task<bool> InternalCancel(RaAction action, object source)
 		{
 			if(action.State > RaAction.RaActionState.PreExecution)
 			{
@@ -124,7 +125,7 @@ namespace RaActions
 
 			action.CancelSource = source;
 			action.SetState(RaAction.RaActionState.Cancelled);
-			action.InvokeCancelMethod(source);
+			await action.InvokeCancelMethod(source);
 
 			if(wasBeingProcessed)
 			{
