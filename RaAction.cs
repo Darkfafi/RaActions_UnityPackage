@@ -1,5 +1,5 @@
-﻿using System.Collections.Generic;
-using System;
+﻿using System;
+using System.Collections.Generic;
 
 namespace RaActions
 {
@@ -32,8 +32,10 @@ namespace RaActions
 		public bool IsCancelled => State == RaActionState.Cancelled;
 
 		internal List<RaAction> chainedActions = new List<RaAction>();
+		internal RaAction parent;
 
 		public IReadOnlyList<RaAction> ChainedActions => chainedActions;
+		public RaAction Parent => parent;
 
 		public bool IsDirty
 		{
@@ -69,6 +71,25 @@ namespace RaActions
 		public bool Cancel(RaActionsProcessor processor, object source)
 		{
 			return processor.InternalCancel(this, source);
+		}
+
+		public bool TryGetParent<T>(out T parent, Predicate<T> predicate = null)
+		{
+			RaAction currentParent = Parent;
+
+			while(currentParent != null)
+			{
+				if(currentParent is T castedParent && (predicate == null || predicate(castedParent)))
+				{
+					parent = castedParent;
+					return true;
+				}
+
+				currentParent = currentParent.Parent;
+			}
+
+			parent = default;
+			return false;
 		}
 
 		public void MarkAsDirty()

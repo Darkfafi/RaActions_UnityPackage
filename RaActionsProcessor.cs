@@ -55,6 +55,7 @@ namespace RaActions
 			{
 				isRootAction = false;
 				parentAction.chainedActions.Add(action);
+				action.parent = parentAction;
 			}
 
 			_currentActionStack.Push(action);
